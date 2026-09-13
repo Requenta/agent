@@ -1,0 +1,139 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "agent.name" . }}-status
+  namespace: {{ .Release.Namespace }}
+data:
+  mode: inventory-only
+  qualification: not-performed
+  execution: disabled
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ .Release.Namespace }}-{{ include "agent.name" . }}-inventory
+rules:
+  - apiGroups: [""]
+    resources: [nodes]
+    verbs: [list]
+{{- if .Values.connection.origin }}
+  - apiGroups: [""]
+    resources: [namespaces]
+    resourceNames: [kube-system]
+    verbs: [get]
+{{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ .Release.Namespace }}-{{ include "agent.name" . }}-inventory
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ .Release.Namespace }}-{{ include "agent.name" . }}-inventory
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "agent.name" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "agent.name" . }}-status
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups: [""]
+    resources: [configmaps]
+    resourceNames: [{{ include "agent.name" . }}-status]
+    verbs: [patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "agent.name" . }}-status
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "agent.name" . }}-status
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "agent.name" . }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: requenta-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/name: requenta-agent
+    spec:
+      serviceAccountName: {{ include "agent.name" . }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      {{- if .Values.connection.origin }}
+      volumes:
+        - name: connection
+          secret:
+            secretName: {{ required "connection.existingSecret is required" .Values.connection.existingSecret }}
+      {{- end }}
+      containers:
+        - name: agent
+          image: {{ include "agent.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: STATUS_CONFIGMAP
+              value: {{ include "agent.name" . }}-status
+            - name: NODE_SELECTOR
+              value: {{ required "nodes.selector must be explicit" .Values.nodes.selector | quote }}
+          {{- if .Values.connection.origin }}
+            - name: REQUENTA_ORIGIN
+              value: {{ .Values.connection.origin | quote }}
+          volumeMounts:
+            - name: connection
+              mountPath: /var/run/requenta
+              readOnly: true
+          {{- end }}
+          ports:
+            - name: health
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

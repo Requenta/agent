@@ -1,0 +1,4 @@
+This is an INVENTORY-ONLY agent. No claim code, certificate, listing, qualification or job execution is provided.
+Read inventory:
+  kubectl -n {{ .Release.Namespace }} get configmap {{ include "agent.name" . }}-status -o yaml
+Kubernetes reports allocatable GPU resources; these are not evidence of currently free or qualified GPUs.

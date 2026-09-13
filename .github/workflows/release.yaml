@@ -1,0 +1,83 @@
+name: Release agent and Helm chart
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+  packages: write
+concurrency:
+  group: supplier-release
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - run: go test ./...
+      - uses: azure/setup-helm@v4.3.0
+        with:
+          version: v3.16.3
+      - run: helm lint deploy/helm/requenta-agent --set development=true --set 'networkPolicy.apiServerCIDRs[0]=10.96.0.1/32'
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/requenta/agent:${{ github.ref_name }}
+          labels: org.opencontainers.image.source=https://github.com/Requenta/agent
+          provenance: true
+          sbom: true
+      - name: Package immutable chart
+        env:
+          IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          version=os.environ['RELEASE_TAG'].removeprefix('v')
+          assert re.fullmatch(r'\d+\.\d+\.\d+',version)
+          p=Path('deploy/helm/requenta-agent/Chart.yaml')
+          assert '\nversion: '+version+'\n' in p.read_text()
+          p=Path('deploy/helm/requenta-agent/values.yaml')
+          p.write_text(p.read_text().replace('repository: requenta-agent','repository: ghcr.io/requenta/agent').replace('digest: ""','digest: "'+os.environ['IMAGE_DIGEST']+'"'))
+          PY
+          mkdir -p dist
+          helm package deploy/helm/requenta-agent --destination dist
+          sha256sum dist/*.tgz > dist/SHA256SUMS
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Inventory connection agent and digest-pinned Helm chart. No customer workload execution."
+      - name: Update Helm repository
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          cp dist/*.tgz /tmp/
+          if git fetch origin gh-pages; then
+            git switch -C gh-pages origin/gh-pages
+          else
+            git switch --orphan gh-pages
+            git rm -rf .
+          fi
+          cp /tmp/requenta-agent-*.tgz .
+          touch .nojekyll
+          helm repo index . --url https://requenta.github.io/agent
+          git add .
+          git commit -m "Publish Helm chart $GITHUB_REF_NAME"
+          git push origin gh-pages

@@ -1,0 +1,25 @@
+image:
+  repository: requenta-agent
+  digest: ""
+  tag: local
+  pullPolicy: IfNotPresent
+# Only for an image built and loaded into a disposable local cluster.
+development: false
+nodes:
+  selector: requenta.com/pool=true
+resources:
+  requests:
+    cpu: 25m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 64Mi
+networkPolicy:
+  enabled: true
+  # Required: the API service IP and/or actual endpoint CIDR used by your CNI.
+  apiServerCIDRs: []
+  apiServerPort: 443
+
+connection:
+  origin: ""
+  existingSecret: ""

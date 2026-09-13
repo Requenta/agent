@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "development": {
+      "type": "boolean"
+    },
+    "image": {
+      "type": "object",
+      "required": [
+        "repository",
+        "digest",
+        "tag",
+        "pullPolicy"
+      ],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^$|^sha256:[a-f0-9]{64}$"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "pullPolicy": {
+          "enum": [
+            "Always",
+            "IfNotPresent",
+            "Never"
+          ]
+        }
+      }
+    },
+    "nodes": {
+      "type": "object",
+      "properties": {
+        "selector": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "selector"
+      ]
+    },
+    "networkPolicy": {
+      "type": "object",
+      "required": [
+        "enabled",
+        "apiServerCIDRs",
+        "apiServerPort"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "apiServerCIDRs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 4
+          }
+        },
+        "apiServerPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "connection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "origin",
+        "existingSecret"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "pattern": "^$|^https://[a-zA-Z0-9.-]+(:[0-9]+)?$"
+        },
+        "existingSecret": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9][a-z0-9.-]*$"
+        }
+      }
+    }
+  },
+  "required": [
+    "image",
+    "development",
+    "nodes",
+    "networkPolicy"
+  ]
+}

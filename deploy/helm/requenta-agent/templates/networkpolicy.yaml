@@ -1,0 +1,36 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $apiCIDRs := .Values.networkPolicy.apiServerCIDRs }}
+{{- $apiPorts := list (.Values.networkPolicy.apiServerPort | int) }}
+{{- if not $apiCIDRs }}
+{{- $endpoints := lookup "v1" "Endpoints" "default" "kubernetes" }}
+{{- if $endpoints }}
+{{- range $endpoints.subsets }}{{- range .addresses }}{{- $bits := "32" }}{{- if contains ":" .ip }}{{- $bits = "128" }}{{- end }}{{- $apiCIDRs = append $apiCIDRs (printf "%s/%s" .ip $bits) }}{{- end }}{{- range .ports }}{{- $apiPorts = append $apiPorts (.port | int) }}{{- end }}{{- end }}
+{{- end }}
+{{- end }}
+{{- if not $apiCIDRs }}
+{{- fail "Set networkPolicy.apiServerCIDRs to your Kubernetes API endpoint CIDRs; no open egress default" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "agent.name" . }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/name: requenta-agent
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        {{- range $apiCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        {{- range uniq $apiPorts }}
+        - protocol: TCP
+          port: {{ . }}
+        {{- end }}
+{{- end }}
