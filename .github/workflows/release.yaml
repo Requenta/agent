@@ -69,15 +69,16 @@ jobs:
           git config user.name github-actions[bot]
           git config user.email 41898282+github-actions[bot]@users.noreply.github.com
           cp dist/*.tgz /tmp/
-          if git fetch origin gh-pages; then
+          git restore deploy/helm/requenta-agent/values.yaml
+          if git fetch origin gh-pages:refs/remotes/origin/gh-pages; then
             git switch -C gh-pages origin/gh-pages
           else
             git switch --orphan gh-pages
-            git rm -rf .
+            git rm -rf --ignore-unmatch .
           fi
           cp /tmp/requenta-agent-*.tgz .
           touch .nojekyll
           helm repo index . --url https://requenta.github.io/agent
-          git add .
+          git add .nojekyll index.yaml requenta-agent-*.tgz
           git commit -m "Publish Helm chart $GITHUB_REF_NAME"
           git push origin gh-pages
