@@ -1,4 +1,10 @@
-This is an INVENTORY-ONLY agent. No claim code, certificate, listing, qualification or job execution is provided.
+Requenta supplier inventory agent installed.
+{{- if .Values.connection.origin }}
+Connection reporting is enabled. Check your supplier connection page for the first report.
+{{- else }}
+Local inventory mode. Set connection.origin and connection.existingSecret to connect to Requenta.
+{{- end }}
 Read inventory:
   kubectl -n {{ .Release.Namespace }} get configmap {{ include "agent.name" . }}-status -o yaml
-Kubernetes reports allocatable GPU resources; these are not evidence of currently free or qualified GPUs.
+Reported allocatable GPUs are not proof of idle or qualified capacity.
+This agent does not provision customer workloads or automatically approve capacity for sale.
