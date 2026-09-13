@@ -1,0 +1,28 @@
+apiVersion: v1
+entries:
+  requenta-agent:
+  - apiVersion: v2
+    appVersion: 0.2.2
+    created: "2026-09-13T22:47:49.033825251Z"
+    description: Selected GPU node inventory and authenticated supplier connection;
+      no workload execution
+    digest: 7fe067b62de2a3b0c2d97fea9db1270c5438357b3b739de1774e5bfdef1712d8
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/requenta-agent-0.2.2.tgz
+    version: 0.2.2
+  - apiVersion: v2
+    appVersion: 0.2.2
+    created: "2026-09-13T22:47:49.034078173Z"
+    description: Selected GPU node inventory and authenticated supplier connection;
+      no workload execution
+    digest: 7fe067b62de2a3b0c2d97fea9db1270c5438357b3b739de1774e5bfdef1712d8
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/dist/requenta-agent-0.2.2.tgz
+    version: 0.2.2
+generated: "2026-09-13T22:47:49.033383815Z"
