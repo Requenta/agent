@@ -42,7 +42,7 @@ Create a separate Secret named requenta-execution with key token in the existing
 ```sh
 helm repo update
 helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.3.0 \
-  --namespace requenta-system --reuse-values -f execution.json
+  --namespace requenta-system --reset-then-reuse-values -f execution.json
 ```
 
 The packaged chart pins both inventory and execution images by digest. The controller's service account can manage pods and their deny policies only in its dedicated restricted workload namespace; it cannot read Kubernetes Secrets. Customer workloads never mount controller credentials. A GPU/CPU/RAM quota and an explicit node allowlist bound the configured capacity. The allowlist is application enforcement; supplier admission controls and isolation qualification remain necessary against a compromised controller. Execution supports Kubernetes 1.34–1.36 with kubectl 1.35; inventory compatibility is broader.
