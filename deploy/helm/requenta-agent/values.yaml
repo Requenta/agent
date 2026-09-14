@@ -23,3 +23,21 @@ networkPolicy:
 connection:
   origin: ""
   existingSecret: ""
+
+# Explicit activation only after offer qualification. Inventory privileges are unchanged.
+execution:
+  enabled: false
+  image:
+    repository: requenta-execution
+    digest: ""
+    tag: local
+  existingSecret: ""
+  workspaceImage: ""
+  clusterReference: ""
+  allowedNodes: []
+  maxGpus: 8
+  maxLifetimeSeconds: 14400
+  # Must include the actual API endpoint IP/port as enforced by the supplier CNI.
+  apiServerCIDRs: []
+  apiServerPort: 443
+  controlPlaneCIDRs: []

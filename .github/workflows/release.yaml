@@ -40,9 +40,20 @@ jobs:
           labels: org.opencontainers.image.source=https://github.com/Requenta/agent
           provenance: true
           sbom: true
+      - id: execution
+        uses: docker/build-push-action@v6
+        with:
+          context: execution
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ghcr.io/requenta/agent:execution-${{ github.ref_name }}
+          labels: org.opencontainers.image.source=https://github.com/Requenta/agent
+          provenance: true
+          sbom: true
       - name: Package immutable chart
         env:
           IMAGE_DIGEST: ${{ steps.image.outputs.digest }}
+          EXECUTION_DIGEST: ${{ steps.execution.outputs.digest }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           python3 - <<'PY'
@@ -53,7 +64,9 @@ jobs:
           p=Path('deploy/helm/requenta-agent/Chart.yaml')
           assert '\nversion: '+version+'\n' in p.read_text()
           p=Path('deploy/helm/requenta-agent/values.yaml')
-          p.write_text(p.read_text().replace('repository: requenta-agent','repository: ghcr.io/requenta/agent').replace('digest: ""','digest: "'+os.environ['IMAGE_DIGEST']+'"'))
+          text=p.read_text().replace('repository: requenta-agent','repository: ghcr.io/requenta/agent').replace('digest: ""','digest: "'+os.environ['IMAGE_DIGEST']+'"',1)
+          text=text.replace('repository: requenta-execution','repository: ghcr.io/requenta/agent').replace('digest: ""','digest: "'+os.environ['EXECUTION_DIGEST']+'"',1)
+          p.write_text(text)
           PY
           mkdir -p dist
           helm package deploy/helm/requenta-agent --destination dist
@@ -61,7 +74,12 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Inventory connection agent and digest-pinned Helm chart. No customer workload execution."
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to overwrite immutable assets" >&2
+            exit 1
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Digest-pinned inventory and opt-in workspace execution images. Separate scoped credentials, workload quota, node allowlist and offline expiry cleanup. Execution requires qualified capacity; see the installation guide."
       - name: Update Helm repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

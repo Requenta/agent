@@ -7,4 +7,11 @@ Local inventory mode. Set connection.origin and connection.existingSecret to con
 Read inventory:
   kubectl -n {{ .Release.Namespace }} get configmap {{ include "agent.name" . }}-status -o yaml
 Reported allocatable GPUs are not proof of idle or qualified capacity.
-This agent does not provision customer workloads or automatically approve capacity for sale.
+{{- if .Values.execution.enabled }}
+Workspace execution is enabled with a separate credential and scoped service account.
+Workload namespace: {{ include "agent.name" . | trunc 45 | trimSuffix "-" }}-workloads
+Before uninstalling, stop accepted bookings and verify cleanup. The workload namespace is retained.
+{{- else }}
+Workspace execution is disabled. Enable it only with qualified capacity and a separate execution credential.
+{{- end }}
+Inventory never automatically approves capacity for sale.

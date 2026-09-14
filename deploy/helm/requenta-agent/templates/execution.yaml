@@ -1,0 +1,224 @@
+{{- if .Values.execution.enabled }}
+{{- $e := .Values.execution }}
+{{- if not (semverCompare ">=1.34.0-0 <1.37.0-0" .Capabilities.KubeVersion.Version) }}{{ fail "Execution image supports Kubernetes 1.34–1.36; select a qualified compatible release" }}{{ end }}
+{{- $name := printf "%s-execution" (include "agent.name" . | trunc 45 | trimSuffix "-") }}
+{{- $ns := printf "%s-workloads" (include "agent.name" . | trunc 45 | trimSuffix "-") }}
+{{- if not (regexMatch "^https://[^/:]+(:443)?$" .Values.connection.origin) }}{{ fail "Execution requires a console HTTPS origin on port 443" }}{{ end }}
+{{- if not $e.allowedNodes }}{{ fail "Execution requires approved allowedNodes" }}{{ end }}
+{{- if not $e.apiServerCIDRs }}{{ fail "Execution requires apiServerCIDRs" }}{{ end }}
+{{- if not $e.controlPlaneCIDRs }}{{ fail "Execution requires explicit controlPlaneCIDRs" }}{{ end }}
+{{- $image := printf "%s:%s" $e.image.repository $e.image.tag }}
+{{- if $e.image.digest }}
+{{- $image = printf "%s@%s" $e.image.repository $e.image.digest }}
+{{- else if not .Values.development }}{{ fail "Execution image must be pinned by digest" }}{{ end }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $ns }}
+  annotations:
+    helm.sh/resource-policy: keep
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: capacity
+  namespace: {{ $ns }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  hard:
+    requests.nvidia.com/gpu: {{ $e.maxGpus | quote }}
+    requests.cpu: {{ mul $e.maxGpus 4 | quote }}
+    requests.memory: {{ printf "%dGi" (mul $e.maxGpus 16) | quote }}
+    limits.cpu: {{ mul $e.maxGpus 4 | quote }}
+    limits.memory: {{ printf "%dGi" (mul $e.maxGpus 16) | quote }}
+    requests.ephemeral-storage: 160Gi
+    limits.ephemeral-storage: 160Gi
+    pods: "8"
+    services: "0"
+    persistentvolumeclaims: "0"
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: isolation
+  namespace: {{ $ns }}
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress: []
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $ns }}
+  annotations:
+    helm.sh/resource-policy: keep
+value: -1
+globalDefault: false
+preemptionPolicy: Never
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: executor
+  namespace: {{ $ns }}
+rules:
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, list, create, delete]
+  - apiGroups: [""]
+    resources: [pods/exec]
+    verbs: [get, create]
+  - apiGroups: [""]
+    resources: [services]
+    verbs: [get, delete]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, create, delete]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: executor
+  namespace: {{ $ns }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: executor
+subjects:
+  - kind: ServiceAccount
+    name: {{ $name }}
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      requenta.io/executor: {{ $name }}
+  policyTypes: [Ingress, Egress]
+  ingress: []
+  egress:
+    - to:
+        {{- range $e.apiServerCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ $e.apiServerPort }}
+    - to:
+        {{- range $e.controlPlaneCIDRs }}
+        - ipBlock:
+            cidr: {{ . | quote }}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: 443
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      requenta.io/executor: {{ $name }}
+  template:
+    metadata:
+      labels:
+        requenta.io/executor: {{ $name }}
+    spec:
+      serviceAccountName: {{ $name }}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: execution
+          image: {{ $image | quote }}
+          env:
+            - name: REQUENTA_ORIGIN
+              value: {{ .Values.connection.origin | quote }}
+            - name: REQUENTA_KUBE_NAMESPACE
+              value: {{ $ns }}
+            - name: REQUENTA_WORKSPACE_IMAGE
+              value: {{ required "Execution requires workspaceImage" $e.workspaceImage | quote }}
+            - name: REQUENTA_CLUSTER_REFERENCE
+              value: {{ required "Execution requires clusterReference" $e.clusterReference | quote }}
+            - name: REQUENTA_ALLOWED_NODES
+              value: {{ toJson $e.allowedNodes | quote }}
+            - name: REQUENTA_EXECUTOR_ID
+              value: {{ $name }}
+            - name: REQUENTA_WORKLOAD_PRIORITY_CLASS
+              value: {{ $ns }}
+            - name: REQUENTA_WORKSPACE_MAX_LIFETIME_SECONDS
+              value: {{ $e.maxLifetimeSeconds | quote }}
+          readinessProbe:
+            exec:
+              command: [python3, -c, "import pathlib,time; age=time.time()-float(pathlib.Path('/tmp/healthy').read_text()); assert 0<=age<90"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: execution-credential
+              mountPath: /var/run/requenta-execution
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: execution-credential
+          secret:
+            secretName: {{ required "Execution requires existingSecret" $e.existingSecret }}
+            defaultMode: 0440
+        - name: tmp
+          emptyDir:
+            sizeLimit: 32Mi
+{{- end }}

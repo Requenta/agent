@@ -7,6 +7,6 @@
 {{- else if .Values.development -}}
 {{- printf "%s:%s" .Values.image.repository .Values.image.tag -}}
 {{- else -}}
-{{- fail "Set image.digest to the verified digest of your built image; no public agent image is published yet" -}}
+{{- fail "Set image.digest or install a published digest-pinned Requenta chart" -}}
 {{- end -}}
 {{- end -}}

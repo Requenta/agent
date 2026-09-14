@@ -89,6 +89,96 @@
           "pattern": "^$|^[a-z0-9][a-z0-9.-]*$"
         }
       }
+    },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "enabled",
+        "image",
+        "existingSecret",
+        "workspaceImage",
+        "clusterReference",
+        "allowedNodes",
+        "maxGpus",
+        "maxLifetimeSeconds",
+        "apiServerCIDRs",
+        "apiServerPort",
+        "controlPlaneCIDRs"
+      ],
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": {
+              "type": "string",
+              "minLength": 1
+            },
+            "digest": {
+              "type": "string",
+              "pattern": "^$|^sha256:[a-f0-9]{64}$"
+            },
+            "tag": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "required": [
+            "repository",
+            "digest",
+            "tag"
+          ]
+        },
+        "existingSecret": {
+          "type": "string",
+          "pattern": "^$|^[a-z0-9][a-z0-9.-]*$"
+        },
+        "workspaceImage": {
+          "type": "string",
+          "pattern": "^$|^[^\\s@]+@sha256:[a-f0-9]{64}$"
+        },
+        "clusterReference": {
+          "type": "string"
+        },
+        "allowedNodes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9.-]{0,252}$"
+          }
+        },
+        "maxGpus": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 8
+        },
+        "maxLifetimeSeconds": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 86400
+        },
+        "apiServerCIDRs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "controlPlaneCIDRs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "apiServerPort": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
     }
   },
   "required": [
