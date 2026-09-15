@@ -40,6 +40,8 @@ class Worker:
         body = None if data is None else json.dumps(data,ensure_ascii=False).encode()
         req = Request(self.origin + path, data=body, headers={
             'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json',
+            **({'X-Requenta-Resources':'resource-bundle-v2', 'X-Requenta-Max-Scratch-Gib':os.environ.get('REQUENTA_MAX_SCRATCH_GIB','2000')}
+               if os.environ.get('REQUENTA_RESOURCE_BUNDLE_ENABLED')=='true' else {}),
         })
         with self.http.open(req, timeout=15) as response:
             payload = response.read(1048577)

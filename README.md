@@ -35,13 +35,13 @@ Run `go test ./...` and render the chart before publishing. Releases run tests, 
 
 ## Workspace execution
 
-Chart 0.4.0 includes an optional execution controller. Obtain an execution credential and approved configuration from Requenta after qualification. The console fills in the approved cluster reference and nodes. Confirm the workspace image, workload lifetime and provider network destination CIDRs, then save the configuration as execution.json.
+Chart 0.5.0 includes an optional execution controller. Obtain an execution credential and approved configuration from Requenta after qualification. The console fills in the approved cluster reference and nodes. Confirm the workspace image, workload lifetime and provider network destination CIDRs, then save the configuration as execution.json.
 
 Create a separate Secret named requenta-execution with key token in the existing release namespace, then upgrade the **same release name**:
 
 ```sh
 helm repo update
-helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.4.0 \
+helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.5.0 \
   --namespace requenta-system --reset-then-reuse-values -f execution.json
 ```
 
@@ -57,3 +57,7 @@ Local expiry is checked before contacting Requenta, so expired managed workloads
 Set `execution.sshEnabled: true` only with a qualified image built using `workspace/Dockerfile` and a digest-pinned approved Debian/Ubuntu CUDA/PyTorch base. Publish that image in your registry and set `execution.workspaceImage` to its digest. The adapter uses outbound WebSockets over the existing console HTTPS origin and namespaced pod exec; it does not create an ingress or expose node SSH. UID 1000, no host credentials, no service-account token in workloads, and independent pod deadlines are retained.
 
 The buyer supplies an Ed25519 public key after handover. Access is booking-scoped, revocable, limited to one hour and bounded by the reservation. OpenSSH runs in inetd mode inside the GPU container. VS Code Remote-SSH and SFTP use the same tunnel; only loopback forwarding is allowed. Validate the exact image on your node before selling SSH-capable capacity. CPU transport integration is not GPU qualification.
+
+## Configurable resources (0.5.0)
+
+Execution supports accepted working disks up to the qualified `execution.maxScratchGiB` and advertises resource-bundle-v2 to the console. Set `execution.maxEphemeralStorageGiB` for the aggregate workload budget, including 10 GiB runtime overhead per booking. Confirm the selected nodes have sufficient allocatable storage and a filesystem layout supported by kubelet ephemeral-storage accounting. The disk remains temporary; exceeding a limit may evict the workload. Network policy still denies direct workload Internet egress. The console relay meters upload and download separately under each booking’s accepted tariffs.

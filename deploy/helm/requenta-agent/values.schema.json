@@ -180,6 +180,19 @@
         },
         "sshEnabled": {
           "type": "boolean"
+        },
+        "resourcesV2": {
+          "type": "boolean"
+        },
+        "maxScratchGiB": {
+          "type": "integer",
+          "minimum": 10,
+          "maximum": 2000
+        },
+        "maxEphemeralStorageGiB": {
+          "type": "integer",
+          "minimum": 20,
+          "maximum": 16160
         }
       }
     }

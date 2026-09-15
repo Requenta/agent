@@ -67,8 +67,23 @@ def manifests(task, config, now=None):
         labels['requenta.io/executor'] = executor
     metadata = {'name': name, 'namespace': namespace, 'labels': labels,
                 'annotations': {'requenta.io/expires-at': end.isoformat()}}
+    terms = task.get('resource_terms')
+    scratch = '10'
+    if terms:
+        version = terms.get('version')
+        if version not in ('included-v1', 'prepaid-transfer-v1', 'resource-bundle-v2'):
+            raise ValueError('Unsupported resource contract')
+        scratch = terms.get('scratchGiB')
+        if not isinstance(scratch, str) or not re.fullmatch(r'[1-9][0-9]{0,3}', scratch):
+            raise ValueError('Invalid disk capacity')
+        if version != 'resource-bundle-v2' and scratch != '10':
+            raise ValueError('Historical disk capacity is fixed')
+        if version == 'resource-bundle-v2' and os.environ.get('REQUENTA_RESOURCE_BUNDLE_ENABLED') != 'true':
+            raise ValueError('Resource bundle execution is not enabled')
+        if int(scratch) > min(2000, int(os.environ.get('REQUENTA_MAX_SCRATCH_GIB', '2000'))):
+            raise ValueError('Disk exceeds qualified capacity')
     gpus = int(task['gpus'])
-    resources = {'nvidia.com/gpu': str(gpus), 'cpu': str(gpus * 4), 'memory': str(gpus * 16) + 'Gi', 'ephemeral-storage': '20Gi'}
+    resources = {'nvidia.com/gpu': str(gpus), 'cpu': str(gpus * 4), 'memory': str(gpus * 16) + 'Gi', 'ephemeral-storage': str(int(scratch) + 10) + 'Gi'}
     pod = {'apiVersion': 'v1', 'kind': 'Pod', 'metadata': metadata, 'spec': {
         'automountServiceAccountToken': False, 'enableServiceLinks': False,
         'activeDeadlineSeconds': ttl, 'restartPolicy': 'Never',
@@ -81,7 +96,7 @@ def manifests(task, config, now=None):
             'resources': {'requests': resources, 'limits': resources},
             'readinessProbe': {'tcpSocket': {'port': 8888}, 'initialDelaySeconds': 3, 'periodSeconds': 5},
             'volumeMounts': [{'name': 'scratch', 'mountPath': '/workspace'}, {'name': 'tmp', 'mountPath': '/tmp'}]}],
-        'volumes': [{'name': 'scratch', 'emptyDir': {'sizeLimit': '10Gi'}}, {'name': 'tmp', 'emptyDir': {'sizeLimit': '1Gi'}}],
+        'volumes': [{'name': 'scratch', 'emptyDir': {'sizeLimit': scratch + 'Gi'}}, {'name': 'tmp', 'emptyDir': {'sizeLimit': '1Gi'}}],
     }}
     service = {'apiVersion': 'v1', 'kind': 'Service', 'metadata': metadata, 'spec': {
         'type': 'ClusterIP', 'selector': labels, 'ports': [{'port': 8888, 'targetPort': 8888}],

@@ -37,6 +37,11 @@ execution:
   workspaceImage: ""
   clusterReference: ""
   allowedNodes: []
+  # A verified node filesystem and kubelet local-storage accounting are required.
+  resourcesV2: true
+  maxScratchGiB: 2000
+  # Aggregate reservation budget, including 10 GiB runtime overhead per booking.
+  maxEphemeralStorageGiB: 16160
   maxGpus: 8
   maxLifetimeSeconds: 14400
   # Must include the actual API endpoint IP/port as enforced by the supplier CNI.
