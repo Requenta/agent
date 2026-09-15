@@ -97,7 +97,10 @@ jobs:
           fi
           cp /tmp/requenta-agent-*.tgz .
           touch .nojekyll
-          helm repo index . --url https://requenta.github.io/agent
+          chart_index_dir=$(mktemp -d)
+          cp requenta-agent-*.tgz "$chart_index_dir/"
+          helm repo index "$chart_index_dir" --url https://requenta.github.io/agent
+          cp "$chart_index_dir/index.yaml" .
           git add .nojekyll index.yaml requenta-agent-*.tgz
           git commit -m "Publish Helm chart $GITHUB_REF_NAME"
           git push origin gh-pages
