@@ -2,8 +2,30 @@ apiVersion: v1
 entries:
   requenta-agent:
   - apiVersion: v2
+    appVersion: 0.4.0
+    created: "2026-09-15T15:33:22.157995491Z"
+    description: Supplier inventory and explicitly qualified workspace execution
+    digest: 20fa39388a41748838afae42cdd5a208c12209d79991370f240f1ff51c519ecf
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/requenta-agent-0.4.0.tgz
+    version: 0.4.0
+  - apiVersion: v2
+    appVersion: 0.4.0
+    created: "2026-09-15T15:33:22.158170965Z"
+    description: Supplier inventory and explicitly qualified workspace execution
+    digest: 20fa39388a41748838afae42cdd5a208c12209d79991370f240f1ff51c519ecf
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/dist/requenta-agent-0.4.0.tgz
+    version: 0.4.0
+  - apiVersion: v2
     appVersion: 0.3.0
-    created: "2026-09-14T08:36:56.805969161Z"
+    created: "2026-09-15T15:33:22.157792767Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 4c758ba814e83cb92e660ff3baea24f0385b096dfb4e7ab738a6ca2c2aa4f9fd
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -13,19 +35,8 @@ entries:
     - https://requenta.github.io/agent/requenta-agent-0.3.0.tgz
     version: 0.3.0
   - apiVersion: v2
-    appVersion: 0.3.0
-    created: "2026-09-14T08:36:56.806342887Z"
-    description: Supplier inventory and explicitly qualified workspace execution
-    digest: 4c758ba814e83cb92e660ff3baea24f0385b096dfb4e7ab738a6ca2c2aa4f9fd
-    kubeVersion: '>=1.31.0-0 <1.38.0-0'
-    name: requenta-agent
-    type: application
-    urls:
-    - https://requenta.github.io/agent/dist/requenta-agent-0.3.0.tgz
-    version: 0.3.0
-  - apiVersion: v2
     appVersion: 0.2.2
-    created: "2026-09-14T08:36:56.805622215Z"
+    created: "2026-09-15T15:33:22.157593317Z"
     description: Selected GPU node inventory and authenticated supplier connection;
       no workload execution
     digest: 7fe067b62de2a3b0c2d97fea9db1270c5438357b3b739de1774e5bfdef1712d8
@@ -35,4 +46,4 @@ entries:
     urls:
     - https://requenta.github.io/agent/requenta-agent-0.2.2.tgz
     version: 0.2.2
-generated: "2026-09-14T08:36:56.805205148Z"
+generated: "2026-09-15T15:33:22.157287268Z"
