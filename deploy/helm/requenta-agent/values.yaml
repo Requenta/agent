@@ -26,6 +26,8 @@ connection:
 
 # Explicit activation only after offer qualification. Inventory privileges are unchanged.
 execution:
+  # Requires an approved workspace image with agent/workspace/sshd_config.
+  sshEnabled: false
   enabled: false
   image:
     repository: requenta-execution

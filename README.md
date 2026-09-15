@@ -35,18 +35,25 @@ Run `go test ./...` and render the chart before publishing. Releases run tests, 
 
 ## Workspace execution
 
-Chart 0.3.0 includes an optional execution controller. Obtain an execution credential and approved configuration from Requenta after qualification. The console fills in the approved cluster reference and nodes. Confirm the workspace image, workload lifetime and provider network destination CIDRs, then save the configuration as execution.json.
+Chart 0.4.0 includes an optional execution controller. Obtain an execution credential and approved configuration from Requenta after qualification. The console fills in the approved cluster reference and nodes. Confirm the workspace image, workload lifetime and provider network destination CIDRs, then save the configuration as execution.json.
 
 Create a separate Secret named requenta-execution with key token in the existing release namespace, then upgrade the **same release name**:
 
 ```sh
 helm repo update
-helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.3.0 \
+helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.4.0 \
   --namespace requenta-system --reset-then-reuse-values -f execution.json
 ```
 
 The packaged chart pins both inventory and execution images by digest. The controller's service account can manage pods and their deny policies only in its dedicated restricted workload namespace; it cannot read Kubernetes Secrets. Customer workloads never mount controller credentials. A GPU/CPU/RAM quota and an explicit node allowlist bound the configured capacity. The allowlist is application enforcement; supplier admission controls and isolation qualification remain necessary against a compromised controller. Execution supports Kubernetes 1.34–1.36 with kubectl 1.35; inventory compatibility is broader.
 
-The workspace controller supports Requenta's authenticated Python/shell command workflow, not SSH or cluster federation. Its current protocol is the test payment/execution contract; installing this chart does not enable live billing. A successful inventory report never authorizes a booking automatically.
+The workspace controller supports Requenta's authenticated Python/shell command workflow and optional SSH access described below. Cluster federation is separate. Its current protocol is the test payment/execution contract; installing this chart does not enable live billing. A successful inventory report never authorizes a booking automatically.
 
 Local expiry is checked before contacting Requenta, so expired managed workloads can be removed during a platform outage. Kubernetes pod deadlines additionally bound runtime if the controller is unavailable. Readiness requires a recent successful reconciliation. Accepted bookings must be stopped and cleanup verified before disabling execution. The workload namespace, quota, isolation policy and PriorityClass are retained on uninstall; inspect and remove residual resources explicitly before reusing capacity. No persistent storage or network data downloads are enabled by the default workload policy.
+
+
+## Optional SSH and VS Code
+
+Set `execution.sshEnabled: true` only with a qualified image built using `workspace/Dockerfile` and a digest-pinned approved Debian/Ubuntu CUDA/PyTorch base. Publish that image in your registry and set `execution.workspaceImage` to its digest. The adapter uses outbound WebSockets over the existing console HTTPS origin and namespaced pod exec; it does not create an ingress or expose node SSH. UID 1000, no host credentials, no service-account token in workloads, and independent pod deadlines are retained.
+
+The buyer supplies an Ed25519 public key after handover. Access is booking-scoped, revocable, limited to one hour and bounded by the reservation. OpenSSH runs in inetd mode inside the GPU container. VS Code Remote-SSH and SFTP use the same tunnel; only loopback forwarding is allowed. Validate the exact image on your node before selling SSH-capable capacity. CPU transport integration is not GPU qualification.

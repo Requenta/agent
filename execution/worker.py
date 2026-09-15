@@ -28,6 +28,10 @@ class Worker:
         self.token_file = Path(token_file)
         self.driver = Path(driver).resolve(strict=True)
         self.http = build_opener(NoRedirect())
+        self.ssh = None
+        if os.environ.get('REQUENTA_SSH_ENABLED')=='true':
+            from ssh_tunnel import SshManager
+            self.ssh = SshManager(self)
 
     def request(self, path, data=None):
         token = self.token_file.read_text().strip()
@@ -62,6 +66,7 @@ class Worker:
 
     def reconcile(self, task):
         booking_id, state = task['id'], task['state']
+        if self.ssh and (state!='running' or task.get('stop_requested_at')):self.ssh.update(task,[])
         if state in ('completed', 'cancelled', 'failed'):
             result = self.operate('cleanup', task)
             if result.get('deleted') is True:
@@ -92,6 +97,14 @@ class Worker:
             self.emit(booking_id, 'completed')
         elif phase not in ('pending', 'ready', 'running'):
             raise ValueError('Unsupported driver phase or transition')
+        if self.ssh and task.get('access_mode')=='workspace' and state in ('ready','running') and phase in ('ready','running') and not task.get('stop_requested_at'):
+            try:
+                ready=self.operate('ssh-ready',task)
+                self.request('/api/execution/bookings/'+booking_id+'/ssh',ready)
+                grants=self.request('/api/execution/bookings/'+booking_id+'/ssh')['grants']
+                self.ssh.update(task,grants)
+            except Exception:
+                self.ssh.update(task,[])
         if task.get('access_mode')=='workspace' and state in ('ready','running') and phase in ('ready','running'):
             for command in self.request('/api/execution/bookings/'+booking_id+'/commands')['commands']:
                 result=self.operate('command',{**task,'command':command})

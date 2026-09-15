@@ -51,6 +51,21 @@ elif time.time()-p.stat().st_mtime>r['timeout']+30:print(json.dumps({'output':'C
 else:print(json.dumps({'pending':True}))
 '''
 
+SSH_PREPARE = r'''
+import json,os,subprocess,sys
+from pathlib import Path
+root=Path('/tmp/requenta-ssh');root.mkdir(mode=0o700,exist_ok=True)
+Path('/workspace/home').mkdir(mode=0o700,exist_ok=True)
+if not (root/'host_key').exists():
+ subprocess.run(['ssh-keygen','-q','-t','ed25519','-N','','-f',str(root/'host_key')],check=True)
+request=json.load(sys.stdin)
+if request.get('public_key'):
+ directory=Path('/workspace/home/.ssh');directory.mkdir(mode=0o700,exist_ok=True)
+ p=directory/'authorized_keys';p.write_text(request['public_key']+'\n');p.chmod(0o600)
+subprocess.run(['/usr/sbin/sshd','-t','-f','/etc/requenta/sshd_config'],check=True)
+print(json.dumps({'hostKey':' '.join((root/'host_key.pub').read_text().split()[:2])}))
+'''
+
 def workspace_config():
     # Legacy gateway fields are unused for this outbound, command-based workspace driver.
     os.environ.setdefault('REQUENTA_ACCESS_ORIGIN','https://unused.invalid')
@@ -82,6 +97,23 @@ class Workspace(Kubernetes):
             for resource in workspace_manifests(task,self.config):
                 if not self.read_owned(resource['kind'].lower(),task):self.command(['create','-f','-','-o','json'],resource)
             return self.inspect(task)
+        if operation in ('ssh-ready','ssh-spec'):
+            pod=self.read_owned('pod',task)
+            if not pod or pod.get('status',{}).get('phase')!='Running':raise ValueError('Workspace is not running')
+            if os.environ.get('REQUENTA_SSH_ENABLED')!='true':raise ValueError('SSH disabled')
+            request={}
+            deadline=dt.datetime.fromisoformat(task['end_at'].replace('Z','+00:00'))
+            if operation=='ssh-spec':
+                grant=task['ssh_grant']
+                if not re.fullmatch(r'ssh-ed25519 [A-Za-z0-9+/]{68}',grant['public_key']):raise ValueError('Invalid public key')
+                deadline=min(deadline,dt.datetime.fromisoformat(grant['expires_at'].replace('Z','+00:00')))
+                request={'public_key':grant['public_key']}
+            remaining=int((deadline-dt.datetime.now(dt.timezone.utc)).total_seconds())
+            if remaining<=0 or task.get('stop_requested_at'):raise ValueError('Access expired')
+            base=['kubectl','--context',self.config[0],'-n',self.config[1],'exec','-i','rq-'+task['id'],'-c','workspace','--']
+            result=subprocess.run([*base,'python3','-I','-c',SSH_PREPARE],input=json.dumps(request),capture_output=True,text=True,timeout=12,check=True)
+            if operation=='ssh-ready':return json.loads(result.stdout)
+            return {'argv':[*base,'timeout','--signal=KILL',str(remaining),'/usr/sbin/sshd','-i','-f','/etc/requenta/sshd_config']}
         if operation=='command':
             pod=self.read_owned('pod',task)
             if not pod or pod.get('status',{}).get('phase')!='Running':raise ValueError('Workspace is not running')

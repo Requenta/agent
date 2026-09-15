@@ -6,6 +6,7 @@ RUN apk add --no-cache ca-certificates curl \
  && curl -fsSLo /tmp/kubectl.sha256 "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/${TARGETARCH}/kubectl.sha256" \
  && echo "$(cat /tmp/kubectl.sha256)  /usr/local/bin/kubectl" | sha256sum -c - \
  && chmod 755 /usr/local/bin/kubectl && rm /tmp/kubectl.sha256 && apk del curl
+RUN pip install --no-cache-dir websockets==17.1
 WORKDIR /app
 COPY *.py ./
 RUN chmod 755 /app/workspace_driver.py

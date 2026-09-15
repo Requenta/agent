@@ -19,6 +19,7 @@ jobs:
           go-version-file: go.mod
           cache: false
       - run: go test ./...
+      - run: python3 -m py_compile execution/*.py client/requenta-ssh.py
       - uses: azure/setup-helm@v4.3.0
         with:
           version: v3.16.3
@@ -79,7 +80,7 @@ jobs:
             echo "Release already exists; refusing to overwrite immutable assets" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Digest-pinned inventory and opt-in workspace execution images. Separate scoped credentials, workload quota, node allowlist and offline expiry cleanup. Execution requires qualified capacity; see the installation guide."
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Digest-pinned inventory and opt-in workspace execution images, with optional outbound SSH, SFTP and VS Code access. Requires an approved SSH-capable GPU workspace image and execution.sshEnabled. Existing installs retain their defaults; see the installation guide."
       - name: Update Helm repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
