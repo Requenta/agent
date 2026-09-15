@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   requenta-agent:
   - apiVersion: v2
+    appVersion: 0.5.0
+    created: "2026-09-15T23:34:14.312204733Z"
+    description: Supplier inventory and explicitly qualified workspace execution
+    digest: 8621f6afa6cbfcf700f20ff345fe52b6cb51d5f9f573bced349df9375e592bf8
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/requenta-agent-0.5.0.tgz
+    version: 0.5.0
+  - apiVersion: v2
     appVersion: 0.4.0
-    created: "2026-09-15T17:35:23.976681+02:00"
+    created: "2026-09-15T23:34:14.312005883Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 20fa39388a41748838afae42cdd5a208c12209d79991370f240f1ff51c519ecf
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -14,7 +25,7 @@ entries:
     version: 0.4.0
   - apiVersion: v2
     appVersion: 0.3.0
-    created: "2026-09-15T17:35:23.976194+02:00"
+    created: "2026-09-15T23:34:14.311800915Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 4c758ba814e83cb92e660ff3baea24f0385b096dfb4e7ab738a6ca2c2aa4f9fd
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -25,7 +36,7 @@ entries:
     version: 0.3.0
   - apiVersion: v2
     appVersion: 0.2.2
-    created: "2026-09-15T17:35:23.975684+02:00"
+    created: "2026-09-15T23:34:14.31159222Z"
     description: Selected GPU node inventory and authenticated supplier connection;
       no workload execution
     digest: 7fe067b62de2a3b0c2d97fea9db1270c5438357b3b739de1774e5bfdef1712d8
@@ -35,4 +46,4 @@ entries:
     urls:
     - https://requenta.github.io/agent/requenta-agent-0.2.2.tgz
     version: 0.2.2
-generated: "2026-09-15T17:35:23.973673+02:00"
+generated: "2026-09-15T23:34:14.311259859Z"
