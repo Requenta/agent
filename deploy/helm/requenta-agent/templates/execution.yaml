@@ -101,7 +101,8 @@ rules:
     verbs: [get, delete]
   - apiGroups: [networking.k8s.io]
     resources: [networkpolicies]
-    verbs: [get, create, delete]
+    # list lets the offline reaper finish cleanups whose pod disappeared between passes.
+    verbs: [get, list, create, delete]
   {{- if $e.egressProxy }}
   # Per-booking proxy credential only; no list, so other Secrets cannot be enumerated.
   - apiGroups: [""]

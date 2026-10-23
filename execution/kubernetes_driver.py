@@ -151,6 +151,17 @@ class Kubernetes:
             if expiry <= dt.datetime.now(dt.timezone.utc) or pod.get('status', {}).get('phase') in ('Failed', 'Succeeded'):
                 # Direct cleanup does not assert a control-plane outcome; the next task poll does that.
                 Kubernetes.run(self, 'cleanup', {'id': booking})
+        # The policy is deleted last, after its pod is gone. If the pod vanished between passes, it is no longer listed
+        # above, so finish from the expired policy; cleanup is idempotent and retried on every pass until complete.
+        policies = self.command(['get', 'networkpolicies', '-l', 'requenta.io/executor=' + executor, '-o', 'json']) or {}
+        for policy in policies.get('items', []):
+            meta = policy['metadata']
+            booking = meta.get('labels', {}).get('requenta.io/booking-id', '')
+            if not re.fullmatch(r'[a-f0-9-]{36}', booking) or meta['name'] != 'rq-' + booking:
+                continue
+            expiry = dt.datetime.fromisoformat(meta.get('annotations', {}).get('requenta.io/expires-at', '2999-01-01T00:00:00+00:00'))
+            if expiry <= dt.datetime.now(dt.timezone.utc):
+                Kubernetes.run(self, 'cleanup', {'id': booking})
         return {'reaped': True}
 
     def run(self, operation, task):

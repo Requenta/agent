@@ -179,11 +179,11 @@ class Workspace(Kubernetes):
     def reap(self):
         result=super().reap()
         executor=required('REQUENTA_EXECUTOR_ID')
-        for pod in self.command(['get','pods','-l','requenta.io/executor='+executor+',requenta.io/egress-proxy','-o','json']).get('items',[]):
-            meta=pod['metadata'];booking=meta.get('labels',{}).get('requenta.io/egress-proxy','')
+        # Proxies are found through their policy, which is deleted last, so an interrupted cleanup resumes next pass.
+        for policy in (self.command(['get','networkpolicies','-l','requenta.io/executor='+executor+',requenta.io/egress-proxy','-o','json']) or {}).get('items',[]):
+            meta=policy['metadata'];booking=meta.get('labels',{}).get('requenta.io/egress-proxy','')
             if not re.fullmatch(r'[a-f0-9-]{36}',booking) or meta['name']!='rq-egress-'+booking:continue
-            expiry=dt.datetime.fromisoformat(meta['annotations']['requenta.io/expires-at'])
-            if expiry<=dt.datetime.now(dt.timezone.utc) or pod.get('status',{}).get('phase') in ('Failed','Succeeded'):
+            if dt.datetime.fromisoformat(meta.get('annotations',{}).get('requenta.io/expires-at','2999-01-01T00:00:00+00:00'))<=dt.datetime.now(dt.timezone.utc):
                 self.cleanup_egress({'id':booking})
         return result
 
