@@ -41,7 +41,7 @@ Create a separate Secret named requenta-execution with key token in the existing
 
 ```sh
 helm repo update
-helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.6.1 \
+helm upgrade YOUR_EXISTING_RELEASE requenta/requenta-agent --version 0.6.2 \
   --namespace requenta-system --reset-then-reuse-values -f execution.json
 ```
 

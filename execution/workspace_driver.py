@@ -170,10 +170,10 @@ class Workspace(Kubernetes):
 
     def cleanup_egress(self, task):
         if self.read_egress('pod',task):
-            self.command(['delete','pod','rq-egress-'+task['id'],'--wait=false','-o','name'])
+            self.command(['delete','pod','rq-egress-'+task['id'],'--ignore-not-found','--wait=false','-o','name'])
             if self.read_egress('pod',task):return False
         for kind in ('networkpolicy','secret'):
-            if self.read_egress(kind,task):self.command(['delete',kind,'rq-egress-'+task['id'],'--wait=false','-o','name'])
+            if self.read_egress(kind,task):self.command(['delete',kind,'rq-egress-'+task['id'],'--ignore-not-found','--wait=false','-o','name'])
         return all(self.read_egress(kind,task) is None for kind in ('pod','networkpolicy','secret'))
 
     def reap(self):

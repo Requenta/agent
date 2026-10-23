@@ -179,12 +179,12 @@ class Kubernetes:
         if operation == 'cleanup':
             # Keep the deny policy until the pod is actually gone, including finalizers/termination.
             if self.read_owned('pod', task):
-                self.command(['delete', 'pod', 'rq-' + task['id'], '--wait=false', '-o', 'name'])
+                self.command(['delete', 'pod', 'rq-' + task['id'], '--ignore-not-found', '--wait=false', '-o', 'name'])
                 if self.read_owned('pod', task):
                     return {'deleted': False}
             for kind in ('service', 'networkpolicy'):
                 if self.read_owned(kind, task):
-                    self.command(['delete', kind, 'rq-' + task['id'], '--wait=false', '-o', 'name'])
+                    self.command(['delete', kind, 'rq-' + task['id'], '--ignore-not-found', '--wait=false', '-o', 'name'])
             deleted = all(self.read_owned(kind, task) is None for kind in ('pod', 'service', 'networkpolicy'))
             return {'deleted': deleted}
         raise ValueError('Unsupported operation')
