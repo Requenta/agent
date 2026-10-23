@@ -2,8 +2,19 @@ apiVersion: v1
 entries:
   requenta-agent:
   - apiVersion: v2
+    appVersion: 0.6.1
+    created: "2026-10-23T09:38:33.666474474Z"
+    description: Supplier inventory and explicitly qualified workspace execution
+    digest: a330c268a04f3c4a3aa48d9325088eb16f5a6a2391982d18412626ea2c7d1940
+    kubeVersion: '>=1.31.0-0 <1.38.0-0'
+    name: requenta-agent
+    type: application
+    urls:
+    - https://requenta.github.io/agent/requenta-agent-0.6.1.tgz
+    version: 0.6.1
+  - apiVersion: v2
     appVersion: 0.6.0
-    created: "2026-10-23T09:23:11.401665754Z"
+    created: "2026-10-23T09:38:33.66616061Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 5e48de2981f70d3ca91edc4a6da516f02522d9302b04e008214a75cbd02cb1bb
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -14,7 +25,7 @@ entries:
     version: 0.6.0
   - apiVersion: v2
     appVersion: 0.5.0
-    created: "2026-10-23T09:23:11.401318897Z"
+    created: "2026-10-23T09:38:33.665705302Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 8621f6afa6cbfcf700f20ff345fe52b6cb51d5f9f573bced349df9375e592bf8
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -25,7 +36,7 @@ entries:
     version: 0.5.0
   - apiVersion: v2
     appVersion: 0.4.0
-    created: "2026-10-23T09:23:11.400949818Z"
+    created: "2026-10-23T09:38:33.665209534Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 20fa39388a41748838afae42cdd5a208c12209d79991370f240f1ff51c519ecf
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -36,7 +47,7 @@ entries:
     version: 0.4.0
   - apiVersion: v2
     appVersion: 0.3.0
-    created: "2026-10-23T09:23:11.400605885Z"
+    created: "2026-10-23T09:38:33.664734206Z"
     description: Supplier inventory and explicitly qualified workspace execution
     digest: 4c758ba814e83cb92e660ff3baea24f0385b096dfb4e7ab738a6ca2c2aa4f9fd
     kubeVersion: '>=1.31.0-0 <1.38.0-0'
@@ -47,7 +58,7 @@ entries:
     version: 0.3.0
   - apiVersion: v2
     appVersion: 0.2.2
-    created: "2026-10-23T09:23:11.400264408Z"
+    created: "2026-10-23T09:38:33.66427951Z"
     description: Selected GPU node inventory and authenticated supplier connection;
       no workload execution
     digest: 7fe067b62de2a3b0c2d97fea9db1270c5438357b3b739de1774e5bfdef1712d8
@@ -57,4 +68,4 @@ entries:
     urls:
     - https://requenta.github.io/agent/requenta-agent-0.2.2.tgz
     version: 0.2.2
-generated: "2026-10-23T09:23:11.39984813Z"
+generated: "2026-10-23T09:38:33.663790221Z"
