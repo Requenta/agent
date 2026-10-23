@@ -61,3 +61,8 @@ The buyer supplies an Ed25519 public key after handover. Access is booking-scope
 ## Configurable resources (0.5.0)
 
 Execution supports accepted working disks up to the qualified `execution.maxScratchGiB` and advertises resource-bundle-v2 to the console. Set `execution.maxEphemeralStorageGiB` for the aggregate workload budget, including 10 GiB runtime overhead per booking. Confirm the selected nodes have sufficient allocatable storage and a filesystem layout supported by kubelet ephemeral-storage accounting. The disk remains temporary; exceeding a limit may evict the workload. Network policy still denies direct workload Internet egress. The console relay meters upload and download separately under each booking’s accepted tariffs.
+
+## Controlled downloads (0.6.0)
+
+`execution.egressProxy: true` runs a per-booking, allow-listed HTTPS proxy so customers can download models, packages and bucket data from destinations frozen in their booking. It requires Secret `get/create/delete` (no `list`) in the workload namespace and a CNI that enforces egress `ipBlock` exceptions. Default `false`. See [Offer controlled downloads](https://console.requenta.com/docs/supplier-setup#offer-controlled-downloads) in the supplier guide.
+

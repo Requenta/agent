@@ -44,6 +44,9 @@ execution:
   maxEphemeralStorageGiB: 16160
   maxGpus: 8
   maxLifetimeSeconds: 14400
+  # RFC-022: per-booking allow-listed download proxy. Requires Secret access in the workload namespace and a CNI that
+  # enforces egress policy. Leave false until qualified; bookings with downloads are then never dispatched here.
+  egressProxy: false
   # Must include the actual API endpoint IP/port as enforced by the supplier CNI.
   apiServerCIDRs: []
   apiServerPort: 443

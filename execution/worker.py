@@ -42,6 +42,7 @@ class Worker:
             'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json',
             **({'X-Requenta-Resources':'resource-bundle-v2', 'X-Requenta-Max-Scratch-Gib':os.environ.get('REQUENTA_MAX_SCRATCH_GIB','2000')}
                if os.environ.get('REQUENTA_RESOURCE_BUNDLE_ENABLED')=='true' else {}),
+            **({'X-Requenta-Egress':'egress-proxy-v1'} if os.environ.get('REQUENTA_EGRESS_PROXY_ENABLED')=='true' else {}),
         })
         with self.http.open(req, timeout=15) as response:
             payload = response.read(1048577)
@@ -86,6 +87,10 @@ class Worker:
             self.emit(booking_id, 'provisioning')
         if state in ('reserved', 'provisioning'):
             result = self.operate('ensure', task)
+            if result.get('egress_token_required'):
+                # RFC-022: the credential travels on the driver's stdin into a Secret, never argv, env or logs.
+                grant = self.request('/api/execution/bookings/' + booking_id + '/egress', {})
+                result = self.operate('ensure', {**task, 'egress_token': grant['token']})
         else:
             result = self.operate('inspect', task)
         phase = result.get('phase')

@@ -193,6 +193,9 @@
           "type": "integer",
           "minimum": 20,
           "maximum": 16160
+        },
+        "egressProxy": {
+          "type": "boolean"
         }
       }
     }

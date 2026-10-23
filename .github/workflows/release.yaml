@@ -80,7 +80,7 @@ jobs:
             echo "Release already exists; refusing to overwrite immutable assets" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Digest-pinned inventory and opt-in workspace execution images, with optional outbound SSH, SFTP and VS Code access. Requires an approved SSH-capable GPU workspace image and execution.sshEnabled. Existing installs retain their defaults; see the installation guide."
+          gh release create "$GITHUB_REF_NAME" dist/*.tgz dist/SHA256SUMS --title "Supplier agent $GITHUB_REF_NAME" --notes "Digest-pinned inventory and opt-in workspace execution images. Optional outbound SSH, SFTP and VS Code access (execution.sshEnabled) and, from 0.6.0, an optional per-booking allow-listed download proxy (execution.egressProxy, requires a CNI that enforces egress ipBlock exceptions). Existing installs retain their defaults; see the installation guide."
       - name: Update Helm repository
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

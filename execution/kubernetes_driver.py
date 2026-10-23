@@ -117,7 +117,7 @@ class Kubernetes:
     def command(self, args, payload=None):
         result = subprocess.run(['kubectl', '--context', self.config[0], '--namespace', self.config[1], *args],
                                 input=None if payload is None else json.dumps(payload), capture_output=True, text=True, timeout=12, check=True)
-        if args[0]=='delete':return None
+        if args[0]=='delete' or args[-2:]==['-o','name']:return None  # '-o name' keeps secret payloads out of stdout.
         return json.loads(result.stdout) if result.stdout.strip() else None
 
     def read_owned(self, kind, task):

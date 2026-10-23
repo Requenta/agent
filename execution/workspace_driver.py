@@ -9,7 +9,8 @@ from pathlib import Path
 import re
 import subprocess
 import sys
-from kubernetes_driver import Kubernetes, configuration, manifests
+from kubernetes_driver import Kubernetes, configuration, manifests, required
+from egress_proxy import rule
 
 PROBE = "import json,torch;print(json.dumps({'cuda':torch.cuda.is_available(),'gpus':torch.cuda.device_count(),'models':[torch.cuda.get_device_name(i) for i in range(torch.cuda.device_count())]}))"
 RUNNER = r'''
@@ -74,13 +75,69 @@ def workspace_config():
     return configuration()
 
 
-def workspace_manifests(task, config, now=None):
+PRIVATE_V4=['10.0.0.0/8','172.16.0.0/12','192.168.0.0/16','169.254.0.0/16','100.64.0.0/10','127.0.0.0/8','0.0.0.0/8']
+
+
+def egress_rules(task):
+    """RFC-022: the booking's frozen host rules, or None. Refused unless the operator enabled the proxy."""
+    e=task.get('egress')
+    if not e:return None
+    if os.environ.get('REQUENTA_EGRESS_PROXY_ENABLED')!='true':raise ValueError('Egress proxy is not enabled')
+    if e.get('version')!='egress-proxy-v1' or not isinstance(e.get('rules'),list) or not 1<=len(e['rules'])<=64:raise ValueError('Unsupported egress contract')
+    return [rule(r) for r in e['rules']]
+
+
+def egress_manifests(task, config, rules, token=None, now=None):
+    """Secret, policy and pod for one booking's proxy. No Service (the workload quota allows none): the workload
+    reaches the pod IP. Egress is DNS plus public addresses on 443; the proxy itself refuses non-allow-listed hosts."""
+    _,namespace,_,_,_,_,priority=config
+    _,_,workload=manifests(task,config,now)
+    image=required('REQUENTA_EGRESS_PROXY_IMAGE')
+    name='rq-egress-'+task['id']
+    labels={'requenta.io/egress-proxy':task['id']}
+    if os.environ.get('REQUENTA_EXECUTOR_ID'):labels['requenta.io/executor']=os.environ['REQUENTA_EXECUTOR_ID']
+    metadata={'name':name,'namespace':namespace,'labels':labels,'annotations':workload['metadata']['annotations']}
+    control=[{'ipBlock':{'cidr':c}} for c in json.loads(os.environ.get('REQUENTA_CONTROL_PLANE_CIDRS','[]'))]
+    policy={'apiVersion':'networking.k8s.io/v1','kind':'NetworkPolicy','metadata':metadata,'spec':{
+        'podSelector':{'matchLabels':labels},'policyTypes':['Ingress','Egress'],
+        'ingress':[{'from':[{'podSelector':{'matchLabels':{'requenta.io/booking-id':task['id']}}}],'ports':[{'port':3128,'protocol':'TCP'}]}],
+        'egress':[{'to':[{'namespaceSelector':{'matchLabels':{'kubernetes.io/metadata.name':'kube-system'}},'podSelector':{'matchLabels':{'k8s-app':'kube-dns'}}}],
+                   'ports':[{'port':53,'protocol':'UDP'},{'port':53,'protocol':'TCP'}]},
+                  {'to':[{'ipBlock':{'cidr':'0.0.0.0/0','except':PRIVATE_V4}},*control],'ports':[{'port':443,'protocol':'TCP'}]}]}}
+    limits={'cpu':'500m','memory':'256Mi','ephemeral-storage':'64Mi'}
+    pod={'apiVersion':'v1','kind':'Pod','metadata':metadata,'spec':{
+        'automountServiceAccountToken':False,'enableServiceLinks':False,'restartPolicy':'Always',
+        'activeDeadlineSeconds':workload['spec']['activeDeadlineSeconds'],
+        'priorityClassName':priority,'preemptionPolicy':'Never','nodeSelector':workload['spec']['nodeSelector'],
+        'securityContext':{'runAsNonRoot':True,'runAsUser':65532,'runAsGroup':65532,'fsGroup':65532,'seccompProfile':{'type':'RuntimeDefault'}},
+        'containers':[{'name':'egress','image':image,'imagePullPolicy':'IfNotPresent','command':['python3','/app/egress_proxy.py','--port','3128'],
+            'env':[{'name':'REQUENTA_EGRESS_ALLOW','value':','.join(rules)},{'name':'REQUENTA_EGRESS_METER','value':'http'},
+                   {'name':'REQUENTA_ORIGIN','value':required('REQUENTA_ORIGIN')},{'name':'REQUENTA_EGRESS_TOKEN_FILE','value':'/var/run/requenta-egress/token'},
+                   {'name':'PYTHONDONTWRITEBYTECODE','value':'1'},{'name':'PYTHONUNBUFFERED','value':'1'}],
+            'ports':[{'containerPort':3128}],'readinessProbe':{'tcpSocket':{'port':3128},'periodSeconds':2},
+            'securityContext':{'allowPrivilegeEscalation':False,'readOnlyRootFilesystem':True,'capabilities':{'drop':['ALL']}},
+            'resources':{'requests':{'cpu':'100m','memory':'128Mi','ephemeral-storage':'64Mi'},'limits':limits},
+            'volumeMounts':[{'name':'credential','mountPath':'/var/run/requenta-egress','readOnly':True}]}],
+        'volumes':[{'name':'credential','secret':{'secretName':name,'defaultMode':0o440}}]}}
+    secret=None
+    if token is not None:
+        if not re.fullmatch(r'rq_egress_[a-f0-9]{64}',token):raise ValueError('Invalid egress credential')
+        secret={'apiVersion':'v1','kind':'Secret','metadata':{'name':name,'namespace':namespace,'labels':labels},'type':'Opaque','stringData':{'token':token}}
+    return secret,policy,pod
+
+
+def workspace_manifests(task, config, now=None, proxy_ip=None):
     policy,_,pod=manifests(task,config,now)
     policy['spec']['ingress']=[]
     container=pod['spec']['containers'][0]
     container.pop('ports');container.pop('readinessProbe')
     container['command']=['python','-I','-c','import time; time.sleep(2147483647)']
     container['env']=[{'name':'HOME','value':'/tmp'},{'name':'PYTHONDONTWRITEBYTECODE','value':'1'},{'name':'NVIDIA_DRIVER_CAPABILITIES','value':'compute,utility'}]
+    if proxy_ip:
+        # Only the booking's proxy is reachable, by IP, so the workload needs neither DNS nor any other route.
+        policy['spec']['egress']=[{'to':[{'podSelector':{'matchLabels':{'requenta.io/egress-proxy':task['id']}}}],'ports':[{'port':3128,'protocol':'TCP'}]}]
+        url='http://'+proxy_ip+':3128'
+        container['env']+=[{'name':n,'value':url} for n in ('HTTPS_PROXY','HTTP_PROXY','https_proxy','http_proxy')]+[{'name':n,'value':'localhost,127.0.0.1'} for n in ('NO_PROXY','no_proxy')]
     container['readinessProbe']={'exec':{'command':['python','-I','-c',f'import torch; assert torch.cuda.is_available() and torch.cuda.device_count()=={int(task["gpus"])}']},'initialDelaySeconds':3,'periodSeconds':15,'timeoutSeconds':10,'failureThreshold':2}
     cap=os.environ.get('REQUENTA_WORKSPACE_MAX_LIFETIME_SECONDS')
     if cap:
@@ -90,13 +147,63 @@ def workspace_manifests(task, config, now=None):
 
 
 class Workspace(Kubernetes):
+    def read_egress(self, kind, task):
+        result=self.command(['get',kind,'rq-egress-'+task['id'],'--ignore-not-found','-o','json'])
+        labels=(result or {}).get('metadata',{}).get('labels',{})
+        if result and (labels.get('requenta.io/egress-proxy')!=task['id'] or (os.environ.get('REQUENTA_EXECUTOR_ID') and labels.get('requenta.io/executor')!=os.environ['REQUENTA_EXECUTOR_ID'])):
+            raise ValueError('Existing resource is not owned by this booking')
+        return result
+
+    def ensure_proxy(self, task, rules):
+        """Returns the proxy pod IP once ready, None while starting, or a request for a credential. The credential is
+        issued once per proxy: an existing Secret is never replaced, so a restarted worker does not rotate it."""
+        if not self.read_egress('secret',task):
+            if not task.get('egress_token'):return {'phase':'pending','egress_token_required':True}
+            secret,_,_=egress_manifests(task,self.config,rules,task['egress_token'])
+            self.command(['create','-f','-','-o','name'],secret)
+        _,policy,pod=egress_manifests(task,self.config,rules)
+        for resource in (policy,pod):
+            if not self.read_egress(resource['kind'].lower(),task):self.command(['create','-f','-','-o','json'],resource)
+        current=self.read_egress('pod',task) or {}
+        ready=any(c.get('type')=='Ready' and c.get('status')=='True' for c in current.get('status',{}).get('conditions',[]))
+        return current.get('status',{}).get('podIP') if ready else None
+
+    def cleanup_egress(self, task):
+        if self.read_egress('pod',task):
+            self.command(['delete','pod','rq-egress-'+task['id'],'--wait=false','-o','name'])
+            if self.read_egress('pod',task):return False
+        for kind in ('networkpolicy','secret'):
+            if self.read_egress(kind,task):self.command(['delete',kind,'rq-egress-'+task['id'],'--wait=false','-o','name'])
+        return all(self.read_egress(kind,task) is None for kind in ('pod','networkpolicy','secret'))
+
+    def reap(self):
+        result=super().reap()
+        executor=required('REQUENTA_EXECUTOR_ID')
+        for pod in self.command(['get','pods','-l','requenta.io/executor='+executor+',requenta.io/egress-proxy','-o','json']).get('items',[]):
+            meta=pod['metadata'];booking=meta.get('labels',{}).get('requenta.io/egress-proxy','')
+            if not re.fullmatch(r'[a-f0-9-]{36}',booking) or meta['name']!='rq-egress-'+booking:continue
+            expiry=dt.datetime.fromisoformat(meta['annotations']['requenta.io/expires-at'])
+            if expiry<=dt.datetime.now(dt.timezone.utc) or pod.get('status',{}).get('phase') in ('Failed','Succeeded'):
+                self.cleanup_egress({'id':booking})
+        return result
+
     def run(self, operation, task):
         if operation=='reap':return self.reap()
         if task.get('access_mode')!='workspace':raise ValueError('Wrong access driver')
         if operation=='ensure':
-            for resource in workspace_manifests(task,self.config):
+            rules=egress_rules(task)
+            proxy_ip=None
+            if rules:
+                proxy_ip=self.ensure_proxy(task,rules)
+                if isinstance(proxy_ip,dict):return proxy_ip
+                if not proxy_ip:return {'phase':'pending'}
+            for resource in workspace_manifests(task,self.config,proxy_ip=proxy_ip):
                 if not self.read_owned(resource['kind'].lower(),task):self.command(['create','-f','-','-o','json'],resource)
             return self.inspect(task)
+        if operation=='cleanup':
+            result=super().run('cleanup',task)
+            # The workload goes first; its proxy and credential follow. Absent egress objects make this a no-op.
+            return {'deleted':result.get('deleted') is True and self.cleanup_egress(task)}
         if operation in ('ssh-ready','ssh-spec'):
             pod=self.read_owned('pod',task)
             if not pod or pod.get('status',{}).get('phase')!='Running':raise ValueError('Workspace is not running')

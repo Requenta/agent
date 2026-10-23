@@ -34,6 +34,16 @@ metadata:
 spec:
   hard:
     requests.nvidia.com/gpu: {{ $e.maxGpus | quote }}
+    {{- if $e.egressProxy }}
+    # One proxy pod per booking at most: 100m/128Mi requested, 500m/256Mi limit, 64Mi disk each.
+    requests.cpu: {{ printf "%dm" (mul $e.maxGpus 4100) | quote }}
+    requests.memory: {{ printf "%dMi" (mul $e.maxGpus 16512) | quote }}
+    limits.cpu: {{ printf "%dm" (mul $e.maxGpus 4500) | quote }}
+    limits.memory: {{ printf "%dMi" (mul $e.maxGpus 16640) | quote }}
+    requests.ephemeral-storage: {{ printf "%dMi" (add (mul (int $e.maxEphemeralStorageGiB) 1024) (mul $e.maxGpus 64)) | quote }}
+    limits.ephemeral-storage: {{ printf "%dMi" (add (mul (int $e.maxEphemeralStorageGiB) 1024) (mul $e.maxGpus 64)) | quote }}
+    pods: "16"
+    {{- else }}
     requests.cpu: {{ mul $e.maxGpus 4 | quote }}
     requests.memory: {{ printf "%dGi" (mul $e.maxGpus 16) | quote }}
     limits.cpu: {{ mul $e.maxGpus 4 | quote }}
@@ -41,6 +51,7 @@ spec:
     requests.ephemeral-storage: {{ printf "%dGi" (int $e.maxEphemeralStorageGiB) | quote }}
     limits.ephemeral-storage: {{ printf "%dGi" (int $e.maxEphemeralStorageGiB) | quote }}
     pods: "8"
+    {{- end }}
     services: "0"
     persistentvolumeclaims: "0"
 ---
@@ -91,6 +102,12 @@ rules:
   - apiGroups: [networking.k8s.io]
     resources: [networkpolicies]
     verbs: [get, create, delete]
+  {{- if $e.egressProxy }}
+  # Per-booking proxy credential only; no list, so other Secrets cannot be enumerated.
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, create, delete]
+  {{- end }}
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -182,6 +199,12 @@ spec:
               value: {{ $e.maxScratchGiB | quote }}
             - name: REQUENTA_SSH_ENABLED
               value: {{ $e.sshEnabled | quote }}
+            - name: REQUENTA_EGRESS_PROXY_ENABLED
+              value: {{ $e.egressProxy | quote }}
+            - name: REQUENTA_EGRESS_PROXY_IMAGE
+              value: {{ $image | quote }}
+            - name: REQUENTA_CONTROL_PLANE_CIDRS
+              value: {{ toJson $e.controlPlaneCIDRs | quote }}
             - name: REQUENTA_ORIGIN
               value: {{ .Values.connection.origin | quote }}
             - name: REQUENTA_KUBE_NAMESPACE
